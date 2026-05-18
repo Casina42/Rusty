@@ -1,6 +1,6 @@
 use log::{info,error,warn,debug,trace,LevelFilter};
 use env_logger;
-use std::{thread, time::Duration};
+use std::{thread::{self, JoinHandle}, time::Duration, vec};
 
 fn just_fortytwo()->u8{
 	42
@@ -25,20 +25,25 @@ fn main() {
 		.filter_level(LevelFilter::Trace)
 		.init();
 
-	let handle= thread::spawn( || {
-		for i in 1..10{
-			match return_abc(i){
-				Ok(appoggino)=>debug!("{}:{}",appoggino.a,appoggino.b),
-				Err(erroraccio)=>error!("{erroraccio}")
-			}
-			thread::sleep(Duration::from_millis(500));
-		}
-	});
+	let mut handles:Vec<JoinHandle<()>> = vec![];
+	for i in 1..10{
+		let handle= thread::spawn(move || {
+				match return_abc(i){
+					Ok(appoggino)=>debug!("{}:{}",appoggino.a,appoggino.b),
+					Err(erroraccio)=>error!("{erroraccio}")
+				}
+		
+		});
+		handles.push(handle);
+		thread::sleep(Duration::from_millis(500));
+	}
 
 	info!("Hello, world!");
 	warn!("I don't feel very good world: my fever is {}°C!",just_fortytwo());
 	error!("goodbye world");
 	trace!("ghooooost");
 
-	handle.join().unwrap();
+	for h in handles{
+		h.join().unwrap();
+	}
 }
