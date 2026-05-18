@@ -1,49 +1,45 @@
-use log::{info,error,warn,debug,trace,LevelFilter};
+use log::{info,warn,LevelFilter};
 use env_logger;
-use std::{thread::{self, JoinHandle}, time::Duration, vec};
-
-fn just_fortytwo()->u8{
-	42
-}
+use std::{sync::mpsc, thread::{self}, time::Duration};
+use std::env;
 
 struct ABC{
-	a:u128,
+	a:usize,
 	b:String,
 }
 
-fn return_abc(in_value:u8)->Result<ABC,String>{
+fn return_abc(in_value:usize)->Result<ABC,String>{
 	if in_value%5==0 || in_value%2==0{
-		Ok(ABC{ a: 500, b: "Ehilà".to_string() })
-	}
-	else{
 		Err("Aiuto".to_string())
+	} else{
+		Ok(ABC{ a: in_value, b: "Ehilà".to_string() })
 	}
 }
 
 fn main() {
+	let argomenti:Vec<String> = env::args().collect();
 	env_logger::Builder::new()
-		.filter_level(LevelFilter::Trace)
+		.filter_level(LevelFilter::Trace) // this is necessary to show to console every log above the trace
 		.init();
 
-	let mut handles:Vec<JoinHandle<()>> = vec![];
-	for i in 1..10{
-		let handle= thread::spawn(move || {
-				match return_abc(i){
-					Ok(appoggino)=>debug!("{}:{}",appoggino.a,appoggino.b),
-					Err(erroraccio)=>error!("{erroraccio}")
-				}
-		
-		});
-		handles.push(handle);
-		thread::sleep(Duration::from_millis(500));
+	let (upstream,downstream) = mpsc::channel();
+
+	let handle= thread::spawn(move || {
+		for i in 1..argomenti.len(){
+			_ = upstream.send(ABC{a:i,b:argomenti[i].to_string()});
+			match return_abc(i){
+				Ok(appoggino)=>{
+				_ = upstream.send(appoggino);
+				},
+				Err(erroraccio)=>warn!("{erroraccio}")
+			};
+			thread::sleep(Duration::from_millis(500));
+		}
+	});
+
+	for rec in downstream{
+		info!("GOT: {}:{}",rec.a,rec.b);
 	}
 
-	info!("Hello, world!");
-	warn!("I don't feel very good world: my fever is {}°C!",just_fortytwo());
-	error!("goodbye world");
-	trace!("ghooooost");
-
-	for h in handles{
-		h.join().unwrap();
-	}
+	handle.join().unwrap();
 }
